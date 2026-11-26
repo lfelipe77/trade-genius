@@ -1,6 +1,6 @@
 # Trade Genius
 
-Time de robôs de investimento. **Por enquanto, só testes: nenhum robô compra ou vende nada.**
+Time de robôs de investimento. **Por enquanto, só dinheiro de mentira (paper trading). Nenhum dinheiro real.**
 
 ## Fase 1: Robô de Preços
 
@@ -65,7 +65,27 @@ Os valores ficam em `risco_config.json` (sem chaves, sem senhas).
 
 ```bash
 python risco.py              # exemplos de ordens aprovadas e vetadas
-python -m unittest -v        # 18 testes
+python -m unittest -v        # testes
+```
+
+## Fase 4: Paper trading (dinheiro de mentira)
+
+Roda sozinho no **GitHub Actions**, de hora em hora, na conta **PAPER** da Alpaca (nunca a real: o código bloqueia `api.alpaca.markets`).
+
+1. `execucao.py` calcula as médias 50/200 de BTC e ETH.
+   **Atenção:** essa estratégia perdeu para comprar e segurar no backtest. Aqui ela só testa a mecânica.
+2. Compra com stop 5% abaixo. Vende se o sinal virar ou se bater no stop.
+3. **Toda ordem passa pelo Robô de Risco.** Vetou = não envia.
+4. `relatorio.py` escreve `relatorios/AAAA-MM-DD.md` (patrimônio, ordens, vetos).
+
+As chaves ficam nos *secrets* do GitHub (`ALPACA_API_KEY`, `ALPACA_SECRET_KEY`). Nunca aparecem no código nem nos logs.
+
+**Parar tudo:** crie o arquivo `PARAR` no repositório (pelo site do GitHub: *Add file → Create new file*). Na próxima hora, nenhuma ordem passa.
+
+```bash
+python checar_chaves.py      # testa as chaves (mostra só o status da conta)
+python execucao.py --simular # calcula e passa no risco, sem enviar ordem
+python relatorio.py          # relatório do dia
 ```
 
 ## Segurança
@@ -78,5 +98,5 @@ Use um arquivo `.env` (já está no `.gitignore`, então não sobe pro GitHub).
 1. ✅ Preços
 2. ✅ Histórico (backtest: média móvel 50/200 dias vs. comprar e segurar)
 3. ✅ Risco
-4. Paper trading (dinheiro de mentira) com relatório diário
+4. ✅ Paper trading (dinheiro de mentira) com relatório diário
 5. Decisão: dinheiro real ou não

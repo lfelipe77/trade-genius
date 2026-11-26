@@ -51,7 +51,7 @@ def gerar(dia: str, conta_atual: dict | None = None) -> str:
         tot_pct = (patrimonio / CAPITAL_INICIAL - 1) * 100
         L += ["## 💰 Conta", "",
               f"- Patrimônio: **{dinheiro(patrimonio)}**",
-              f"- Hoje: {dia_pct:+.2f}%  |  Desde o início: {tot_pct:+.2f}%",
+              f"- Hoje: {dia_pct:+.2f}%  |  Desde o início: {tot_pct:+.2f}%".replace(".", ","),
               f"- Caixa livre: {dinheiro(caixa)}", ""]
     else:
         L += ["## 💰 Conta", "", "- Sem dados da conta hoje.", ""]
