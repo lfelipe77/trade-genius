@@ -1,10 +1,10 @@
 {
   "BTC-USD": {
-    "stop": 57764.92,
-    "compra": 60805.18
+    "logica": "rompimento",
+    "id_sinal": null
   },
   "ETH-USD": {
-    "stop": 1619.12,
-    "compra": 1704.3395
+    "logica": "rompimento",
+    "id_sinal": null
   }
 }
