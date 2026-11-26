@@ -47,6 +47,27 @@ Resultado com os dados de 2022-06-14 a 2026-11-25:
 **Neste período, as médias perderam para comprar e segurar nos dois casos.**
 Passado não garante futuro, e 5 anos é pouco histórico.
 
+## Fase 3: Robô de Risco
+
+Regras fixas em código (**sem IA**) em `risco.py`. Toda ordem passa por ele antes de ir para a corretora, e ele pode **vetar**.
+
+| Regra | Padrão |
+|---|---|
+| Risco máximo por trade (preço − stop, + custos) | 1% da conta |
+| Limite de perda no dia (bateu: só vendas até amanhã) | 3% |
+| Compra sem stop | vetada |
+| Alavancagem / venda a descoberto | proibidas |
+| Botão de parar | bloqueia **todas** as ordens |
+
+Os valores ficam em `risco_config.json` (sem chaves, sem senhas).
+
+**Botão de parar:** crie um arquivo chamado `PARAR` na pasta do projeto (ou mude `"parar_tudo"` para `true` no config). Apague o arquivo para liberar de novo.
+
+```bash
+python risco.py              # exemplos de ordens aprovadas e vetadas
+python -m unittest -v        # 18 testes
+```
+
 ## Segurança
 
 Este repositório é **público**. Nunca coloque chaves, senhas ou tokens aqui.
@@ -56,6 +77,6 @@ Use um arquivo `.env` (já está no `.gitignore`, então não sobe pro GitHub).
 
 1. ✅ Preços
 2. ✅ Histórico (backtest: média móvel 50/200 dias vs. comprar e segurar)
-3. Robô de Risco
+3. ✅ Risco
 4. Paper trading (dinheiro de mentira) com relatório diário
 5. Decisão: dinheiro real ou não

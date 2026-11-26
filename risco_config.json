@@ -1,0 +1,8 @@
+{
+  "risco_max_por_trade": 0.01,
+  "perda_max_diaria": 0.03,
+  "custo_por_operacao": 0.0015,
+  "parar_tudo": false,
+  "arquivo_parar": "PARAR",
+  "ativos_permitidos": ["BTC-USD", "ETH-USD"]
+}
