@@ -1,12 +1,12 @@
 """Fase 4: Robô de Execução (PAPER, dinheiro de mentira).
 
 Roda sozinho no GitHub Actions (a cada 15 minutos). A cada rodada, para BTC e ETH:
-  1. Pega os fechamentos diários na Alpaca e calcula as médias de 50 e 200 dias.
-  2. Sinal: média 50 acima da 200 = quer estar comprado. Abaixo = quer caixa.
-     ATENÇÃO: esse sinal PERDEU para "comprar e segurar" no backtest (Fase 2).
-     Aqui ele serve só para testar a mecânica (ordem -> risco -> corretora ->
-     relatório), não para ganhar dinheiro.
-  3. Stop de 5% abaixo do preço de compra. Se o preço cair até o stop, vende.
+  1. Pega as velas diárias na Alpaca.
+  2. Pergunta à lógica do ativo (sinais.py) o que fazer. Hoje: ROMPIMENTO
+     (fecha acima da máxima de N dias e da média de 200 = compra; fecha abaixo
+     da mínima de M dias = vende). Ele ganhou no backtest walk-forward, mas o
+     lucro veio de poucas operações. Pode ser sorte. Sem promessa de lucro.
+  3. Se o preço cair até o stop, vende.
   4. TODA ordem passa pelo Robô de Risco (risco.py). Vetou = não envia.
   5. Anota tudo em logs/AAAA-MM-DD.jsonl (base do relatório diário).
 
@@ -23,14 +23,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import alpaca
+import sinais
 from risco import Conta, Ordem, checar_ordem, tamanho_maximo
 
 PASTA = Path(__file__).parent
 LOGS = PASTA / "logs"
 ESTADO = PASTA / "estado.json"   # guarda o stop de cada posição aberta
 ATIVOS = {"BTC-USD": "BTC/USD", "ETH-USD": "ETH/USD"}  # nosso nome -> nome Alpaca
-RAPIDA, LENTA = 50, 200
-STOP_PCT = 0.05
+DIAS_HISTORICO = 400  # velas diárias pedidas (precisa de 200+ para a média)
 MIN_DOLAR = 10.0  # ordens menores que isso não valem a pena
 
 
@@ -52,19 +52,6 @@ def ler_estado() -> dict:
 
 def salvar_estado(estado: dict) -> None:
     ESTADO.write_text(json.dumps(estado, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-
-
-def sinal(fechamentos: list[float]) -> str | None:
-    """'comprado', 'caixa', ou None se não tem dados suficientes.
-
-    Usa só dias COMPLETOS: o último candle (dia de hoje, em andamento) é ignorado.
-    """
-    completos = fechamentos[:-1]
-    if len(completos) < LENTA:
-        return None
-    m_rapida = sum(completos[-RAPIDA:]) / RAPIDA
-    m_lenta = sum(completos[-LENTA:]) / LENTA
-    return "comprado" if m_rapida > m_lenta else "caixa"
 
 
 def arredondar_baixo(q: float, casas: int = 6) -> float:
@@ -92,30 +79,44 @@ def rodar(simular: bool = False) -> None:
             "caixa": conta.caixa, "posicoes": conta.posicoes, "status": bruto.get("status")})
 
     for nosso, simbolo in ATIVOS.items():
-        barras = alpaca.barras_diarias(simbolo, dias=LENTA + 20)
-        fech = [float(b["c"]) for b in barras]
-        if not fech:
+        barras = alpaca.barras_diarias(simbolo, dias=DIAS_HISTORICO)
+        if not barras:
             anotar({"tipo": "erro", "ativo": nosso, "motivo": "sem preços da Alpaca"})
             continue
-        preco = fech[-1]
-        s = sinal(fech)
+        preco = float(barras[-1]["c"])
+        dias = [{"t": b["t"][:10], "o": float(b["o"]), "h": float(b["h"]),
+                 "l": float(b["l"]), "c": float(b["c"])} for b in barras[:-1]]  # só dias completos
+        logica, s = sinais.avaliar(nosso, dias, preco)
         tem = conta.posicoes.get(nosso, 0.0)
-        stop = estado.get(nosso, {}).get("stop")
-        anotar({"tipo": "sinal", "ativo": nosso, "preco": preco, "sinal": s,
-                "posicao": tem, "stop": stop})
+        info = estado.get(nosso, {})
+        stop = info.get("stop")
+        anotar({"tipo": "sinal", "ativo": nosso, "preco": preco, "logica": logica,
+                "sinal": s.quer, "motivo": s.motivo, "posicao": tem, "stop": stop})
 
         ordem = None
-        if tem > 0 and ((stop and preco <= stop) or s == "caixa"):
-            motivo = "stop atingido" if (stop and preco <= stop) else "sinal virou caixa"
+        if tem > 0 and stop and preco <= stop:
+            motivo, ordem = "stop atingido", Ordem(nosso, "sell", tem, preco)
+        elif tem > 0 and s.quer == "caixa":
+            motivo = f"{logica}: {s.motivo}"
+            if info.get("logica", "medias") != logica:
+                motivo = f"troca de estratégia para {logica}, que hoje quer caixa ({s.motivo})"
             ordem = Ordem(nosso, "sell", tem, preco)
-        elif tem == 0 and s == "comprado":
-            novo_stop = round(preco * (1 - STOP_PCT), 2)
-            q = arredondar_baixo(tamanho_maximo(preco, novo_stop, conta) * 0.98)  # folga p/ preço mexer
+        elif tem > 0 and info.get("logica", "medias") != logica:
+            # posição antiga que a nova lógica também quer: adota, com o stop da nova lógica
+            estado[nosso] = {**info, "logica": logica, "stop": s.stop, "id_sinal": s.id_sinal}
+            salvar_estado(estado)
+            anotar({"tipo": "adotou", "ativo": nosso, "logica": logica, "stop": s.stop})
+        elif tem == 0 and s.quer == "comprado" and s.pode_comprar \
+                and (s.id_sinal is None or info.get("id_sinal") != s.id_sinal):
+            if not (s.stop and 0 < s.stop < preco):
+                anotar({"tipo": "pulou", "ativo": nosso, "motivo": "stop inválido"})
+                continue
+            q = arredondar_baixo(tamanho_maximo(preco, s.stop, conta) * 0.98)  # folga p/ preço mexer
             if q * preco < MIN_DOLAR:
                 anotar({"tipo": "pulou", "ativo": nosso, "motivo": "tamanho pequeno demais"})
                 continue
-            motivo = "sinal comprado (média 50 > 200)"
-            ordem = Ordem(nosso, "buy", q, preco, stop=novo_stop)
+            motivo = f"{logica}: {s.motivo}"
+            ordem = Ordem(nosso, "buy", q, preco, stop=s.stop)
         if ordem is None:
             continue
 
@@ -136,10 +137,12 @@ def rodar(simular: bool = False) -> None:
             continue
         anotar({"tipo": "ordem", **registro, "id_alpaca": r.get("id"), "status": r.get("status")})
         if ordem.lado == "buy":
-            estado[nosso] = {"stop": ordem.stop, "compra": preco}
+            estado[nosso] = {"stop": ordem.stop, "compra": preco, "logica": logica,
+                             "id_sinal": s.id_sinal}
             conta.caixa -= ordem.quantidade * preco
         else:
-            estado.pop(nosso, None)
+            # guarda o id do sinal para não recomprar o mesmo rompimento depois de vender
+            estado[nosso] = {"logica": logica, "id_sinal": info.get("id_sinal")}
         salvar_estado(estado)
 
 

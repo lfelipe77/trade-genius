@@ -72,15 +72,19 @@ python -m unittest -v        # testes
 
 Roda sozinho no **GitHub Actions**, a cada 15 minutos, na conta **PAPER** da Alpaca (nunca a real: o código bloqueia `api.alpaca.markets`).
 
-1. `execucao.py` calcula as médias 50/200 de BTC e ETH.
-   **Atenção:** essa estratégia perdeu para comprar e segurar no backtest. Aqui ela só testa a mecânica.
-2. Compra com stop 5% abaixo. Vende se o sinal virar ou se bater no stop.
+1. `execucao.py` pergunta a `sinais.py` o que fazer com BTC e ETH. Lógica ligada: **rompimento**
+   (fecha acima da máxima de N dias e da média de 200 = compra; fecha abaixo da mínima de M dias = vende).
+   BTC: N=20, M=10. ETH: N=40, M=20. Stop = entrada − 2×ATR.
+   Ganhou no backtest walk-forward, mas com poucas operações: pode ter sido sorte.
+2. Só entra no dia do rompimento (não compra atrasado) e não recompra o mesmo sinal.
 3. **Toda ordem passa pelo Robô de Risco.** Vetou = não envia.
 4. `relatorio.py` escreve `relatorios/AAAA-MM-DD.md` (patrimônio, ordens, vetos).
 
 As chaves ficam nos *secrets* do GitHub (`ALPACA_API_KEY`, `ALPACA_SECRET_KEY`). Nunca aparecem no código nem nos logs.
 
-**Parar tudo:** crie o arquivo `PARAR` no repositório (pelo site do GitHub: *Add file → Create new file*). Na próxima hora, nenhuma ordem passa.
+**Outras lógicas em `sinais.py`:** `medias` (50/200, a antiga) e `recuo` (comprar queda forte em tendência de alta), **desligada**: só liga com backtest aprovado e OK do Felipe. Para adicionar uma lógica: escreva a função, registre em `LOGICAS` e escolha em `USAR`.
+
+**Parar tudo:** crie o arquivo `PARAR` no repositório (pelo site do GitHub: *Add file → Create new file*). Na próxima rodada (até 15 min), nenhuma ordem passa.
 
 ```bash
 python checar_chaves.py      # testa as chaves (mostra só o status da conta)
