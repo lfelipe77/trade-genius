@@ -1,0 +1,32 @@
+name: Dados por minuto (BTC e ETH)
+
+# Só LEITURA de preços: não compra, não vende.
+on:
+  workflow_dispatch:
+  push:   # roda quando o script ou este arquivo muda
+    paths: ["dados_minuto.py", ".github/workflows/dados-minuto.yml"]
+
+permissions:
+  contents: write   # para salvar data/minuto/ no repositório
+
+jobs:
+  baixar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Baixar velas de 1 minuto (Alpaca 7 dias, Binance 30 dias)
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: python dados_minuto.py
+      - name: Salvar no repositório
+        if: always()
+        run: |
+          git config user.name "trade-genius-robo"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -d data/minuto ]; then git add data/minuto; fi
+          git diff --cached --quiet || git commit -m "Dados por minuto: $(date -u +%Y-%m-%dT%H:%MZ)"
+          git pull --rebase -q && git push
