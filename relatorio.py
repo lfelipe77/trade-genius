@@ -44,8 +44,8 @@ def gerar(dia: str, conta_atual: dict | None = None) -> str:
         patrimonio = inicio = caixa = None
 
     L = [f"# Relatório do dia {dia}", "",
-         "> Dinheiro de **mentira** (paper). Estratégia médias 50/200 = só teste da mecânica:",
-         "> ela perdeu para \"comprar e segurar\" no backtest. Nada aqui é promessa de lucro.", ""]
+         "> Dinheiro de **mentira** (paper). Estratégia: rompimento (ganhou no backtest, mas com",
+         "> poucas operações: pode ter sido sorte). Nada aqui é promessa de lucro.", ""]
     if patrimonio is not None:
         dia_pct = (patrimonio / inicio - 1) * 100 if inicio else 0
         tot_pct = (patrimonio / CAPITAL_INICIAL - 1) * 100
@@ -60,7 +60,8 @@ def gerar(dia: str, conta_atual: dict | None = None) -> str:
     if sinais:
         for a, e in sinais.items():
             sig = {"comprado": "🟢 comprado", "caixa": "⚪ caixa"}.get(e["sinal"], "❔ sem dados")
-            L.append(f"- {a}: preço {dinheiro(e['preco'])}, sinal {sig}, posição {e['posicao']}")
+            L.append(f"- {a}: preço {dinheiro(e['preco'])}, sinal {sig}, posição {e['posicao']}"
+                     + (f" ({e['logica']}: {e['motivo']})" if e.get("logica") else ""))
     else:
         L.append("- Nenhuma checagem hoje.")
     L.append("")
