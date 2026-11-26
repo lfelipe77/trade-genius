@@ -123,6 +123,7 @@ A (recuo) perdeu dinheiro sem o filtro de Medo e Ganância. Detalhes: `python ba
 
 **Cuidado:** o lucro do rompimento veio de 1 a 2 operações grandes (alta de 2024). Poucas operações e um só ciclo de cripto: pode ser sorte.
 Passado não garante futuro.
+
 ## Teste de sinais rápidos (1 minuto)
 
 `backtest_minuto.py` testa 4 sinais rápidos nos 30 dias de dados de 1 minuto da Binance
