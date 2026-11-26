@@ -131,7 +131,10 @@ def rodar(simular: bool = False) -> None:
             anotar({"tipo": "simulada", **registro})
             continue
         try:
-            r = alpaca.enviar_ordem_mercado(simbolo, ordem.lado, ordem.quantidade)
+            if ordem.lado == "sell":  # sempre vende tudo: fecha a posição com a quantidade exata
+                r = alpaca.fechar_posicao(simbolo)
+            else:
+                r = alpaca.enviar_ordem_mercado(simbolo, ordem.lado, ordem.quantidade)
         except alpaca.ErroAlpaca as e:
             anotar({"tipo": "erro", **registro, "motivo": str(e)})
             continue

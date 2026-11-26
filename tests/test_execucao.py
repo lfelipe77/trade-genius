@@ -98,6 +98,11 @@ class FakeAlpaca:
         p = self.precos[simbolo]
         return velas(p) + [{"t": "2026-hoje", "o": p[-1], "h": p[-1], "l": p[-1], "c": p[-1]}]
 
+    def fechar_posicao(self, simbolo):
+        q = next(float(p["qty"]) for p in self.pos if p["symbol"] == simbolo.replace("/", ""))
+        self.enviadas.append((simbolo, "sell", q))
+        return {"id": "x", "status": "accepted"}
+
     def enviar_ordem_mercado(self, simbolo, lado, q):
         self.enviadas.append((simbolo, lado, q))
         return {"id": "x", "status": "accepted"}
@@ -213,6 +218,11 @@ class TestExecucao(unittest.TestCase):
 
 
 class TestSoPaper(unittest.TestCase):
+    def test_fechar_posicao_usa_paper(self):
+        with mock.patch.object(execucao.alpaca, "_pedir", return_value={}) as p:
+            execucao.alpaca.fechar_posicao("BTC/USD")
+        p.assert_called_once_with("DELETE", "https://paper-api.alpaca.markets/v2/positions/BTCUSD")
+
     def test_bloqueia_conta_real(self):
         with self.assertRaises(execucao.alpaca.ErroAlpaca):
             execucao.alpaca._pedir("GET", "https://api.alpaca.markets/v2/account")
