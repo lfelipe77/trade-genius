@@ -22,6 +22,31 @@ python precos.py
 
 Ele substitui os CSVs pelos dados mais novos.
 
+## Fase 2: Robô de Histórico (backtest)
+
+Testa no passado: **médias móveis 50/200 dias** (comprado quando a média de 50 está acima da de 200, em caixa quando está abaixo) contra **comprar e segurar**.
+
+- Sinal calculado no fechamento, operação no dia seguinte (sem "olhar o futuro").
+- Custo em toda compra/venda: 0,10% de taxa + 0,05% de derrapagem.
+- As duas começam no mesmo dia (quando a média de 200 já existe).
+
+```bash
+python backtest.py
+```
+
+Resultado com os dados de 2022-06-14 a 2026-11-25:
+
+| | Médias 50/200 | Comprar e segurar |
+|---|---|---|
+| BTC retorno | +42,4% | +171,5% |
+| BTC maior queda | -53,1% | -53,1% |
+| ETH retorno | -28,6% | +39,3% |
+| ETH maior queda | -68,9% | -67,6% |
+| Operações (cada) | 9 | 1 |
+
+**Neste período, as médias perderam para comprar e segurar nos dois casos.**
+Passado não garante futuro, e 5 anos é pouco histórico.
+
 ## Segurança
 
 Este repositório é **público**. Nunca coloque chaves, senhas ou tokens aqui.
@@ -30,7 +55,7 @@ Use um arquivo `.env` (já está no `.gitignore`, então não sobe pro GitHub).
 ## Próximas fases
 
 1. ✅ Preços
-2. Histórico (backtest: média móvel 50/200 dias vs. comprar e segurar)
+2. ✅ Histórico (backtest: média móvel 50/200 dias vs. comprar e segurar)
 3. Robô de Risco
 4. Paper trading (dinheiro de mentira) com relatório diário
 5. Decisão: dinheiro real ou não
