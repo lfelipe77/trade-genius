@@ -47,7 +47,7 @@ def _pedir(metodo: str, url: str, corpo: dict | None = None):
             return json.loads(texto) if texto else None
     except urllib.error.HTTPError as e:
         msg = e.read().decode(errors="replace")[:300]
-        if e.code in (401, 403):
+        if e.code == 401 or (e.code == 403 and metodo == "GET"):
             raise ErroAlpaca(f"Alpaca recusou as chaves (HTTP {e.code}). Confira se as duas "
                              f"secrets são da conta PAPER e estão certas.") from None
         raise ErroAlpaca(f"Alpaca respondeu HTTP {e.code}: {msg}") from None
@@ -71,6 +71,12 @@ def enviar_ordem_mercado(simbolo: str, lado: str, quantidade: float) -> dict:
     return _pedir("POST", f"{PAPER}/orders", {
         "symbol": simbolo, "qty": f"{quantidade:.6f}", "side": lado,
         "type": "market", "time_in_force": "gtc"})
+
+
+def fechar_posicao(simbolo: str) -> dict:
+    """Vende a posição INTEIRA (a Alpaca usa a quantidade exata que temos).
+    simbolo no formato da Alpaca, ex.: 'BTC/USD'."""
+    return _pedir("DELETE", f"{PAPER}/positions/{urllib.parse.quote(simbolo.replace('/', ''))}")
 
 
 def barras_diarias(simbolo: str, dias: int = 260) -> list:
