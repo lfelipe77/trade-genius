@@ -100,3 +100,26 @@ Use um arquivo `.env` (já está no `.gitignore`, então não sobe pro GitHub).
 3. ✅ Risco
 4. ✅ Paper trading (dinheiro de mentira) com relatório diário
 5. Decisão: dinheiro real ou não
+
+## Robô seletivo (backtest): só opera com sinal forte
+
+`backtest_seletivo.py` testa estratégias que **esperam** um bom momento (poucas operações), em dados diários.
+Os parâmetros são escolhidos só com dados antigos (walk-forward, janelas de 6 meses) e testados em 2024-01 a 2026-11, período que a escolha não viu.
+Custo 0,15% por lado. Stop = entrada − k×ATR. Só comprado ou caixa.
+
+- **A Tendência + recuo:** tendência de alta e o preço caiu forte (RSI(3) baixo) → compra; vende quando recupera.
+- **B Rompimento:** fecha acima da máxima de N dias → compra; vende quando fecha abaixo da mínima de M dias.
+- **+M:** não compra com o índice de Medo e Ganância (alternative.me, `data/fear_greed.csv`) em euforia.
+
+| 2024-01 a 2026-11 | Operações | Retorno | Maior queda |
+|---|---|---|---|
+| BTC B Rompimento | 13 | +61% | -33% |
+| BTC comprar e segurar | 1 | +37% | -53% |
+| ETH B Rompimento | 6 | +69% | -23% |
+| ETH comprar e segurar | 1 | -28% | -68% |
+| Ficar em caixa | 0 | 0% | 0% |
+
+A (recuo) perdeu dinheiro sem o filtro de Medo e Ganância. Detalhes: `python backtest_seletivo.py`.
+
+**Cuidado:** o lucro do rompimento veio de 1 a 2 operações grandes (alta de 2024). Poucas operações e um só ciclo de cripto: pode ser sorte.
+Passado não garante futuro.
