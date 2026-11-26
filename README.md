@@ -123,3 +123,28 @@ A (recuo) perdeu dinheiro sem o filtro de Medo e Ganância. Detalhes: `python ba
 
 **Cuidado:** o lucro do rompimento veio de 1 a 2 operações grandes (alta de 2024). Poucas operações e um só ciclo de cripto: pode ser sorte.
 Passado não garante futuro.
+## Teste de sinais rápidos (1 minuto)
+
+`backtest_minuto.py` testa 4 sinais rápidos nos 30 dias de dados de 1 minuto da Binance
+(`data/minuto/`). Escolhe o melhor ajuste nos primeiros 20 dias e prova nos últimos 10
+(dias não usados para escolher). Custo: 0,10% taxa + 0,03% derrapagem por lado.
+
+```bash
+python backtest_minuto.py
+```
+
+Resultado na prova (16/11 a 26/11/2026), **com taxas**:
+
+| Sinal | BTC | ETH | Trades/dia |
+|---|---|---|---|
+| Rompimento + volume (5 min) | -4,1% | -4,1% | ~1,5 |
+| Cruzamento EMA (15 min) | -1,9% | -3,4% | ~1 |
+| Reversão após queda (1 min) | -2,2% | -5,7% | ~0,6 |
+| Momento (15 min) | -7,5% | -3,7% | ~1,5 |
+| Comprar e segurar | -7,5% | -7,7% | - |
+| Ficar parado em dinheiro | 0% | 0% | 0 |
+
+**Todos perderam dinheiro.** "Ganharam" de comprar e segurar só porque o mercado caiu e eles
+ficaram a maior parte do tempo fora. Ficar parado (0%) ganhou de todos.
+No treino, quase nenhum ajuste deu lucro (0-3%; só a reversão no BTC teve 44%).
+30 dias é pouquíssimo. Passado não garante futuro.
