@@ -70,7 +70,7 @@ python -m unittest -v        # testes
 
 ## Fase 4: Paper trading (dinheiro de mentira)
 
-Roda sozinho no **GitHub Actions**, de hora em hora, na conta **PAPER** da Alpaca (nunca a real: o código bloqueia `api.alpaca.markets`).
+Roda sozinho no **GitHub Actions**, a cada 15 minutos, na conta **PAPER** da Alpaca (nunca a real: o código bloqueia `api.alpaca.markets`).
 
 1. `execucao.py` calcula as médias 50/200 de BTC e ETH.
    **Atenção:** essa estratégia perdeu para comprar e segurar no backtest. Aqui ela só testa a mecânica.

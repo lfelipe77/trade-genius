@@ -1,6 +1,6 @@
 """Fase 4: Robô de Execução (PAPER, dinheiro de mentira).
 
-Roda sozinho no GitHub Actions (de hora em hora). A cada rodada, para BTC e ETH:
+Roda sozinho no GitHub Actions (a cada 15 minutos). A cada rodada, para BTC e ETH:
   1. Pega os fechamentos diários na Alpaca e calcula as médias de 50 e 200 dias.
   2. Sinal: média 50 acima da 200 = quer estar comprado. Abaixo = quer caixa.
      ATENÇÃO: esse sinal PERDEU para "comprar e segurar" no backtest (Fase 2).
