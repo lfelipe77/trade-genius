@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: ["claude/**"]
-    paths: ["alpaca.py", "checar_chaves.py", ".github/workflows/checar-chaves.yml"]
+    paths: ["*.py", ".github/workflows/*.yml"]
 
 permissions:
   contents: read
@@ -22,3 +22,10 @@ jobs:
           ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
           ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
         run: python checar_chaves.py
+      - name: Testes
+        run: python -m unittest -v
+      - name: Rodada SIMULADA (passa no risco, mas não envia ordem)
+        env:
+          ALPACA_API_KEY: ${{ secrets.ALPACA_API_KEY }}
+          ALPACA_SECRET_KEY: ${{ secrets.ALPACA_SECRET_KEY }}
+        run: python execucao.py --simular && python relatorio.py
