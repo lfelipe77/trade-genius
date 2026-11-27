@@ -1,10 +1,12 @@
 {
-  "BTC-USD": {
-    "logica": "rompimento",
-    "id_sinal": null
-  },
-  "ETH-USD": {
-    "logica": "rompimento",
-    "id_sinal": null
+  "rompimento": {
+    "BTC-USD": {
+      "logica": "rompimento",
+      "id_sinal": null
+    },
+    "ETH-USD": {
+      "logica": "rompimento",
+      "id_sinal": null
+    }
   }
 }
