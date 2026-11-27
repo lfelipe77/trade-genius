@@ -82,34 +82,78 @@ class TestRecuo(unittest.TestCase):
                     self.assertEqual(s.quer == "comprado", pos.iloc[j] == 1, f"{ativo} {nome} dia {j}")
 
 
+class TestAcimaMedia(unittest.TestCase):
+    def test_subindo_quer_comprado_com_stop_movel(self):
+        s = sinais.acima_media(velas([100 + i for i in range(120)]), 220.0, n=50, k=2)
+        self.assertEqual(s.quer, "comprado")
+        self.assertTrue(s.pode_comprar)
+        self.assertLess(s.stop, 220.0)
+        self.assertIsNotNone(s.stop_movel)
+
+    def test_caindo_quer_caixa(self):
+        self.assertEqual(sinais.acima_media(velas(CAINDO), 101.0).quer, "caixa")
+
+    def test_poucos_dados(self):
+        self.assertEqual(sinais.acima_media(velas(PLANO[:30]), 100.0).quer, "caixa")
+
+    def test_bate_com_o_backtest(self):
+        try:
+            import backtest_momento as b
+        except ImportError:
+            self.skipTest("pandas não instalado")
+        for ativo in ("BTC-USD", "ETH-USD"):
+            df = b.load(ativo)
+            _, _, pos, _ = b.simulate(df, "M", {"n": 50, "k": 2, "trail": 1})
+            dias = [{"t": str(i.date()), "o": r.Open, "h": r.High, "l": r.Low, "c": r.Close}
+                    for i, r in df.iterrows()]
+            for j in range(100, len(dias), 25):
+                s = sinais.acima_media(dias[:j + 1], dias[j]["c"], n=50, k=2)
+                self.assertEqual(s.quer == "comprado", pos.iloc[j] == 1, f"{ativo} dia {j}")
+
+
 class FakeAlpaca:
-    """Corretora de mentira: nada sai do computador."""
+    """Corretora de mentira: nada sai do computador. Cobra 0,25% de taxa em moeda na compra."""
     ErroAlpaca = execucao.alpaca.ErroAlpaca
 
     def __init__(self, precos, posicoes=None, equity=100_000, last=100_000, cash=100_000):
-        self.precos, self.pos = precos, posicoes or []
+        self.precos, self.pos = precos, [dict(p) for p in (posicoes or [])]
         self.c = {"equity": str(equity), "last_equity": str(last), "cash": str(cash), "status": "ACTIVE"}
         self.enviadas = []
 
     def conta(self): return self.c
-    def posicoes(self): return self.pos
+    def posicoes(self): return [dict(p) for p in self.pos]
 
     def barras_diarias(self, simbolo, dias=0):
         p = self.precos[simbolo]
         return velas(p) + [{"t": "2026-hoje", "o": p[-1], "h": p[-1], "l": p[-1], "c": p[-1]}]
 
+    def _mexer(self, simbolo, dq):
+        sym = simbolo.replace("/", "")
+        for p in self.pos:
+            if p["symbol"] == sym:
+                p["qty"] = str(float(p["qty"]) + dq)
+                if float(p["qty"]) <= 1e-12:
+                    self.pos.remove(p)
+                return
+        self.pos.append({"symbol": sym, "qty": str(dq)})
+
     def fechar_posicao(self, simbolo):
         q = next(float(p["qty"]) for p in self.pos if p["symbol"] == simbolo.replace("/", ""))
         self.enviadas.append((simbolo, "sell", q))
+        self._mexer(simbolo, -q)
         return {"id": "x", "status": "accepted"}
 
     def enviar_ordem_mercado(self, simbolo, lado, q):
         self.enviadas.append((simbolo, lado, q))
+        self._mexer(simbolo, q * 0.9975 if lado == "buy" else -q)
         return {"id": "x", "status": "accepted"}
 
 
-USAR_TESTE = {"BTC-USD": ("rompimento", {"n": 20, "m": 10, "k": 2.0}),
-              "ETH-USD": ("rompimento", {"n": 20, "m": 10, "k": 2.0})}
+SO_ROMPIMENTO = {"rompimento": {"BTC-USD": ("rompimento", {"n": 20, "m": 10, "k": 2.0}),
+                                "ETH-USD": ("rompimento", {"n": 20, "m": 10, "k": 2.0})}}
+DUAS = {**SO_ROMPIMENTO,
+        "media": {"BTC-USD": ("acima_media", {"n": 50, "k": 2.0}),
+                  "ETH-USD": ("acima_media", {"n": 50, "k": 2.0})}}
 
 
 class TestExecucao(unittest.TestCase):
@@ -117,7 +161,7 @@ class TestExecucao(unittest.TestCase):
         self.tmp = Path(tempfile.mkdtemp())
         self.p = [mock.patch.object(execucao, "LOGS", self.tmp / "logs"),
                   mock.patch.object(execucao, "ESTADO", self.tmp / "estado.json"),
-                  mock.patch.dict(sinais.USAR, USAR_TESTE)]
+                  mock.patch.object(sinais, "ESTRATEGIAS", SO_ROMPIMENTO)]
         for x in self.p: x.start()
 
     def tearDown(self):
@@ -130,6 +174,9 @@ class TestExecucao(unittest.TestCase):
     def estado(self):
         return json.loads((self.tmp / "estado.json").read_text())
 
+    def escrever(self, est):
+        (self.tmp / "estado.json").write_text(json.dumps(est))
+
     def rodar(self, fake, **kw):
         with mock.patch.object(execucao, "alpaca", fake):
             execucao.rodar(**kw)
@@ -140,16 +187,15 @@ class TestExecucao(unittest.TestCase):
         self.assertEqual(len(fake.enviadas), 1)
         simbolo, lado, q = fake.enviadas[0]
         self.assertEqual((simbolo, lado), ("BTC/USD", "buy"))
-        est = self.estado()["BTC-USD"]
-        self.assertEqual(est["logica"], "rompimento")
+        est = self.estado()["rompimento"]["BTC-USD"]
         self.assertLessEqual(q * (120 - est["stop"]), 1000)  # 1% de 100 mil
+        self.assertAlmostEqual(est["qtd"], q * 0.9975)       # guarda o que entrou de verdade
 
     def test_nao_recompra_o_mesmo_rompimento(self):
         fake = FakeAlpaca({"BTC/USD": ROMPEU_HOJE, "ETH/USD": CAINDO})
         self.rodar(fake)
-        id_sinal = self.estado()["BTC-USD"]["id_sinal"]
-        (self.tmp / "estado.json").write_text(json.dumps(
-            {"BTC-USD": {"logica": "rompimento", "id_sinal": id_sinal}}))  # já vendeu (ex.: stop)
+        id_sinal = self.estado()["rompimento"]["BTC-USD"]["id_sinal"]
+        self.escrever({"rompimento": {"BTC-USD": {"id_sinal": id_sinal}}})  # já vendeu (ex.: stop)
         fake2 = FakeAlpaca({"BTC/USD": ROMPEU_HOJE, "ETH/USD": CAINDO})
         self.rodar(fake2)
         self.assertEqual(fake2.enviadas, [])
@@ -159,24 +205,16 @@ class TestExecucao(unittest.TestCase):
         self.rodar(fake)
         self.assertEqual(fake.enviadas, [])
 
-    def test_troca_de_estrategia_vende_posicao_das_medias(self):
-        (self.tmp / "estado.json").write_text(json.dumps({"ETH-USD": {"stop": 50, "compra": 300}}))
-        fake = FakeAlpaca({"BTC/USD": CAINDO, "ETH/USD": CAINDO},
-                          posicoes=[{"symbol": "ETHUSD", "qty": "2.5"}])
-        self.rodar(fake)
-        self.assertEqual(fake.enviadas, [("ETH/USD", "sell", 2.5)])
-        venda = [e for e in self.eventos() if e["tipo"] == "ordem"][0]
-        self.assertIn("troca de estratégia", venda["por_que"])
-
-    def test_adota_posicao_antiga_se_rompimento_tambem_quer(self):
-        (self.tmp / "estado.json").write_text(json.dumps({"BTC-USD": {"stop": 50, "compra": 100}}))
+    def test_migra_estado_antigo(self):
+        self.escrever({"BTC-USD": {"stop": 50, "compra": 100, "logica": "rompimento"},
+                       "ETH-USD": {"logica": "rompimento", "id_sinal": None}})
         fake = FakeAlpaca({"BTC/USD": ROMPEU_ANTES, "ETH/USD": CAINDO},
                           posicoes=[{"symbol": "BTCUSD", "qty": "1"}])
         self.rodar(fake)
+        est = self.estado()
+        self.assertNotIn("BTC-USD", est)
+        self.assertEqual(est["rompimento"]["BTC-USD"]["qtd"], 1.0)
         self.assertEqual(fake.enviadas, [])
-        est = self.estado()["BTC-USD"]
-        self.assertEqual(est["logica"], "rompimento")
-        self.assertGreater(est["stop"], 50)
 
     def test_simular_nao_envia(self):
         fake = FakeAlpaca({"BTC/USD": ROMPEU_HOJE, "ETH/USD": ROMPEU_HOJE})
@@ -192,18 +230,60 @@ class TestExecucao(unittest.TestCase):
         self.assertTrue(any(e["tipo"] == "veto" for e in self.eventos()))
 
     def test_vende_no_stop(self):
-        (self.tmp / "estado.json").write_text(json.dumps(
-            {"BTC-USD": {"stop": 130, "logica": "rompimento"}}))
+        self.escrever({"rompimento": {"BTC-USD": {"qtd": 1.0, "stop": 130, "compra": 125}}})
         fake = FakeAlpaca({"BTC/USD": ROMPEU_ANTES, "ETH/USD": CAINDO},
                           posicoes=[{"symbol": "BTCUSD", "qty": "1"}])
         self.rodar(fake)
         self.assertEqual(fake.enviadas, [("BTC/USD", "sell", 1.0)])
+        pl = self.estado()["placar"]["rompimento"]
+        self.assertEqual((pl["operacoes"], pl["acertos"]), (1, 0))
+        self.assertLess(pl["resultado_usd"], 0)
 
     def test_parar_bloqueia_tudo(self):
         with mock.patch("risco.parar_ligado", return_value=True):
             fake = FakeAlpaca({"BTC/USD": ROMPEU_HOJE, "ETH/USD": ROMPEU_HOJE})
             self.rodar(fake)
         self.assertEqual(fake.enviadas, [])
+
+    def test_duas_estrategias_cada_uma_com_sua_carteira(self):
+        subindo = [100 + i for i in range(300)] + [450.0]  # rompe hoje e está acima da média
+        with mock.patch.object(sinais, "ESTRATEGIAS", DUAS):
+            fake = FakeAlpaca({"BTC/USD": subindo, "ETH/USD": CAINDO})
+            self.rodar(fake)
+            compras = [x for x in fake.enviadas if x[1] == "buy"]
+            self.assertEqual(len(compras), 2)  # uma de cada, cada uma passou no risco sozinha
+            est = self.estado()
+            q_romp, q_media = est["rompimento"]["BTC-USD"]["qtd"], est["media"]["BTC-USD"]["qtd"]
+            self.assertGreater(q_romp, 0)
+            self.assertGreater(q_media, 0)
+            # agora só a média quer sair (preço cai abaixo da média, sem bater o stop do rompimento)
+            est["rompimento"]["BTC-USD"]["stop"] = 1.0
+            est["media"]["BTC-USD"]["stop"] = 1.0
+            self.escrever(est)
+            fake2 = FakeAlpaca({"BTC/USD": subindo + [300.0] * 40, "ETH/USD": CAINDO}, posicoes=fake.pos)
+            with mock.patch.object(sinais, "rompimento",
+                                   return_value=sinais.Sinal("comprado", False, 1.0, "x", "segue")):
+                with mock.patch.dict(sinais.LOGICAS, {"rompimento": sinais.rompimento}):
+                    self.rodar(fake2)
+            self.assertEqual(len(fake2.enviadas), 1)
+            simbolo, lado, q = fake2.enviadas[0]
+            self.assertEqual((simbolo, lado), ("BTC/USD", "sell"))
+            self.assertAlmostEqual(q, q_media, places=5)  # vende SÓ a parte da média
+            est = self.estado()
+            self.assertEqual(est["rompimento"]["BTC-USD"]["qtd"], q_romp)
+            self.assertNotIn("qtd", est["media"]["BTC-USD"])
+
+    def test_stop_movel_so_sobe(self):
+        subindo = [100 + i for i in range(300)]
+        with mock.patch.object(sinais, "ESTRATEGIAS",
+                               {"media": {"BTC-USD": ("acima_media", {"n": 50, "k": 2.0}),
+                                          "ETH-USD": ("acima_media", {"n": 50, "k": 2.0})}}):
+            self.escrever({"media": {"BTC-USD": {"qtd": 1.0, "stop": 50.0, "compra": 300}}})
+            fake = FakeAlpaca({"BTC/USD": subindo, "ETH/USD": CAINDO},
+                              posicoes=[{"symbol": "BTCUSD", "qty": "1"}])
+            self.rodar(fake)
+        self.assertEqual(fake.enviadas, [])
+        self.assertGreater(self.estado()["media"]["BTC-USD"]["stop"], 50.0)
 
     def test_relatorio(self):
         fake = FakeAlpaca({"BTC/USD": ROMPEU_HOJE, "ETH/USD": CAINDO},
@@ -215,6 +295,7 @@ class TestExecucao(unittest.TestCase):
         self.assertIn("Vetos do Robô de Risco (1)", txt)
         self.assertIn("$96.000,00", txt)
         self.assertIn("rompimento", txt)
+        self.assertIn("Placar por estratégia", txt)
 
 
 class TestSoPaper(unittest.TestCase):

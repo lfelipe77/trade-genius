@@ -7,7 +7,7 @@ Sinal. O Robô de Risco continua tendo a palavra final em toda ordem.
 Para ADICIONAR uma lógica nova:
   1. escreva uma função  minha_logica(dias, preco, **params) -> Sinal
   2. registre em LOGICAS = {"nome": minha_logica}
-  3. escolha qual ativo usa qual lógica em USAR
+  3. escolha qual ativo usa qual lógica em ESTRATEGIAS (várias rodam em paralelo)
 
 Sinal:
   quer   "comprado" ou "caixa" (o que a lógica quer ter agora)
@@ -27,6 +27,7 @@ class Sinal:
     stop: float | None
     id_sinal: str | None
     motivo: str
+    stop_movel: float | None = None  # stop que SOBE com o preço (para quem já está comprado)
 
 
 # ------------------------------------------------------------ ajudantes
@@ -94,6 +95,47 @@ def rompimento(dias, preco, n=20, m=10, k=2.0):
                  f"rompeu a máxima de {n} dias" + ("" if fresco else " (sinal antigo, não entra atrasado)"))
 
 
+# ------------------------------------------------------------ lógica 4
+def acima_media(dias, preco, n=50, k=2.0):
+    """Acima da média (backtest_momento.py, estratégia M), com stop móvel.
+
+    COMPRADO enquanto o dia fecha acima da média de n dias. SAI quando fecha
+    abaixo da média, ou no stop. O stop começa em entrada - k x ATR(14) e
+    SOBE junto com o maior fechamento desde a entrada (nunca desce).
+    No teste fora da amostra (2024-01 a 2026-11, custo 0,15%/lado) operou
+    bem mais vezes que o rompimento (~45-55 operações) e TODAS as combinações
+    de parâmetros lucraram. Ainda assim: um só ciclo de cripto, sem promessa.
+
+    Repassa o histórico dia a dia (igual ao backtest), sem olhar o futuro.
+    """
+    inicio = max(n, 15)
+    if len(dias) <= inicio:
+        return Sinal("caixa", False, None, None, "poucos dados")
+    fech = [d["c"] for d in dias]
+    dentro, stop, topo, entrada_i = False, 0.0, 0.0, None
+    for i in range(inicio, len(dias)):
+        d = dias[i]
+        acima = d["c"] > media(fech[i - n + 1:i + 1])
+        if dentro:
+            if d["l"] <= stop:
+                dentro = False
+                continue  # não recompra no mesmo dia do stop
+            if not acima:
+                dentro = False
+                continue
+            topo = max(topo, d["c"])
+            stop = max(stop, topo - k * atr(dias[:i + 1]))
+        elif acima:
+            dentro, entrada_i, topo = True, i, d["c"]
+            stop = d["c"] - k * atr(dias[:i + 1])
+    mm = f"{media(fech[-n:]):,.0f}".replace(",", ".")
+    if not dentro:
+        return Sinal("caixa", False, None, None,
+                     f"abaixo da média de {n} dias (${mm}): tendência de baixa, fica em caixa")
+    return Sinal("comprado", True, round(preco - k * atr(dias), 2), dias[entrada_i].get("t", str(entrada_i)),
+                 f"acima da média de {n} dias (${mm})", stop_movel=round(stop, 2))
+
+
 # ------------------------------------------------------------ lógica 3 (DESLIGADA)
 def rsi3_serie(fech, alfa=1 / 3):
     """RSI de 3 dias (0 a 100). Abaixo de 20 = caiu forte e rápido."""
@@ -144,19 +186,27 @@ def recuo(dias, preco, t=100, x=20, k=2.0, saida=65, max_dias=15):
 
 
 # ------------------------------------------------------------ escolha
-LOGICAS = {"medias": medias, "rompimento": rompimento, "recuo": recuo}
+LOGICAS = {"medias": medias, "rompimento": rompimento, "recuo": recuo, "acima_media": acima_media}
 
-# Qual lógica cada ativo usa, com os parâmetros escolhidos no backtest
-# walk-forward (backtest_seletivo.py). Trocar aqui = trocar a estratégia.
-# "recuo" existe mas está DESLIGADA: para ligar, troque o nome aqui (por
-# exemplo ("recuo", {"t": 100, "x": 20, "k": 2.0})) só depois de um backtest
-# com custos que passe e da aprovação do Felipe.
-USAR = {
-    "BTC-USD": ("rompimento", {"n": 20, "m": 10, "k": 2.0}),
-    "ETH-USD": ("rompimento", {"n": 40, "m": 20, "k": 2.0}),
+# ESTRATÉGIAS que rodam EM PARALELO na mesma conta paper. Cada uma tem a sua
+# "carteira" (estado.json guarda quanto cada uma comprou), para comparar.
+# Cada compra de cada uma passa sozinha pelo Robô de Risco (1% da conta).
+# Parâmetros escolhidos nos backtests walk-forward:
+#   rompimento: backtest_seletivo.py   media: backtest_momento.py
+# "recuo" existe mas está DESLIGADA: só ligar com backtest aprovado e OK do Felipe.
+ESTRATEGIAS = {
+    "rompimento": {
+        "BTC-USD": ("rompimento", {"n": 20, "m": 10, "k": 2.0}),
+        "ETH-USD": ("rompimento", {"n": 40, "m": 20, "k": 2.0}),
+    },
+    "media": {
+        "BTC-USD": ("acima_media", {"n": 50, "k": 2.0}),
+        "ETH-USD": ("acima_media", {"n": 50, "k": 2.0}),
+    },
 }
+USAR = ESTRATEGIAS["rompimento"]  # compatibilidade com código antigo
 
 
-def avaliar(ativo, dias, preco):
-    nome, params = USAR[ativo]
+def avaliar(ativo, dias, preco, estrategia="rompimento"):
+    nome, params = ESTRATEGIAS[estrategia][ativo]
     return nome, LOGICAS[nome](dias, preco, **params)

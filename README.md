@@ -72,10 +72,12 @@ python -m unittest -v        # testes
 
 Roda sozinho no **GitHub Actions**, a cada 15 minutos, na conta **PAPER** da Alpaca (nunca a real: o código bloqueia `api.alpaca.markets`).
 
-1. `execucao.py` pergunta a `sinais.py` o que fazer com BTC e ETH. Lógica ligada: **rompimento**
-   (fecha acima da máxima de N dias e da média de 200 = compra; fecha abaixo da mínima de M dias = vende).
-   BTC: N=20, M=10. ETH: N=40, M=20. Stop = entrada − 2×ATR.
-   Ganhou no backtest walk-forward, mas com poucas operações: pode ter sido sorte.
+1. `execucao.py` pergunta a `sinais.py` o que fazer com BTC e ETH. **Duas estratégias rodam em paralelo**
+   na mesma conta, cada uma com a sua carteira em `estado.json` (quantidade, preço de compra, stop, placar):
+   - **rompimento**: fecha acima da máxima de N dias e da média de 200 = compra; fecha abaixo da mínima de M dias = vende.
+     BTC: N=20, M=10. ETH: N=40, M=20. Stop = entrada − 2×ATR. Poucas operações: pode ter sido sorte.
+   - **media**: comprado enquanto fecha acima da média de 50 dias; vende quando fecha abaixo. Stop móvel
+     (começa em entrada − 2×ATR e sobe com o preço, nunca desce). Opera mais vezes (ver `backtest_momento.py`).
 2. Só entra no dia do rompimento (não compra atrasado) e não recompra o mesmo sinal.
 3. **Toda ordem passa pelo Robô de Risco.** Vetou = não envia.
 4. `relatorio.py` escreve `relatorios/AAAA-MM-DD.md` (patrimônio, ordens, vetos).
@@ -127,6 +129,34 @@ A (recuo) perdeu dinheiro sem o filtro de Medo e Ganância. Detalhes: `python ba
 
 **Cuidado:** o lucro do rompimento veio de 1 a 2 operações grandes (alta de 2024). Poucas operações e um só ciclo de cripto: pode ser sorte.
 Passado não garante futuro.
+
+## Tendência e momento (backtest): estratégias que operam mais
+
+`backtest_momento.py` testa ideias de tendência em dados diários, com o mesmo teste honesto do robô seletivo
+(walk-forward, janelas de 6 meses, teste 2024-01 a 2026-11, custo 0,15% por lado, stop k×ATR):
+rompimento curto (10/20 dias), stop móvel, acima da média (20/50/100), cruzamento rápido de médias,
+momento de L dias e rotação BTC/ETH.
+
+| 2024-01 a 2026-11 | Operações | Retorno | Maior queda | Combinações que lucraram | Na conta (regra 1%) |
+|---|---|---|---|---|---|
+| BTC acima da média | 53 | +69% | -28% | 100% | +14% |
+| BTC rompimento curto | 17 | +33% | -33% | 56% | +8% |
+| BTC comprar e segurar | 1 | +37% | -53% | | |
+| ETH acima da média | 36 | +84% | -47% | 100% | +8% |
+| ETH momento 30 dias | 41 | +40% | -39% | 88% | +10% |
+| ETH comprar e segurar | 1 | -28% | -68% | | |
+| Rotação BTC/ETH | 85 | +16% | -39% | 75% | +4% |
+
+**Escolhida para o paper: acima da média de 50 dias** (a que mais ganhou, com mais operações, e 100% das
+combinações de parâmetros lucraram). Roda **ao lado** do rompimento, para comparar.
+
+**Cuidados honestos:**
+- Tirando as 2 melhores operações, o resultado fica negativo em TODAS as ideias de tendência. É a natureza
+  delas: perdem pouco muitas vezes e ganham muito poucas vezes. Por isso elas precisam de tempo.
+- "Na conta" é pequeno porque o Robô de Risco limita cada operação a 1% de risco (cerca de 10-12% da conta por compra).
+- Hoje (2026-11-27) BTC e ETH estão abaixo das médias (BTC caiu ~29% e ETH ~37% em 60 dias):
+  todas as estratégias de tendência dizem **caixa**. Ficar parado agora é o que evitou essas perdas.
+- Um só ciclo de cripto. Passado não garante futuro.
 
 ## Teste de sinais rápidos (1 minuto)
 
