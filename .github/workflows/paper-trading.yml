@@ -2,7 +2,7 @@ name: Paper trading (Alpaca PAPER)
 
 on:
   schedule:
-    - cron: "*/15 * * * *"  # a cada 15 minutos (teste)
+    - cron: "*/15 * * * *"  # a cada 15 minutos (roda só pelo branch principal: main)
   workflow_dispatch:
   push:            # roda 1 vez quando este arquivo muda no main (e o GitHub passa a enxergar o agendamento)
     branches: [main]
