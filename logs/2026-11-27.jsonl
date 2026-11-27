@@ -1,3 +1,6 @@
 {"hora": "2026-11-27T12:39:41Z", "tipo": "conta", "patrimonio": 99431.62, "patrimonio_inicio_dia": 100000.0, "caixa": 99431.62, "posicoes": {}, "status": "ACTIVE"}
 {"hora": "2026-11-27T12:39:41Z", "tipo": "sinal", "ativo": "BTC-USD", "preco": 61445.756, "logica": "rompimento", "sinal": "caixa", "motivo": "sem rompimento (precisa fechar acima da máxima de 20 dias e da média de 200)", "posicao": 0.0, "stop": null}
 {"hora": "2026-11-27T12:39:41Z", "tipo": "sinal", "ativo": "ETH-USD", "preco": 1719.75, "logica": "rompimento", "sinal": "caixa", "motivo": "sem rompimento (precisa fechar acima da máxima de 40 dias e da média de 200)", "posicao": 0.0, "stop": null}
+{"hora": "2026-11-27T14:53:07Z", "tipo": "conta", "patrimonio": 99431.62, "patrimonio_inicio_dia": 100000.0, "caixa": 99431.62, "posicoes": {}, "status": "ACTIVE"}
+{"hora": "2026-11-27T14:53:08Z", "tipo": "sinal", "ativo": "BTC-USD", "preco": 59211.174, "logica": "rompimento", "sinal": "caixa", "motivo": "sem rompimento (precisa fechar acima da máxima de 20 dias e da média de 200)", "posicao": 0.0, "stop": null}
+{"hora": "2026-11-27T14:53:08Z", "tipo": "sinal", "ativo": "ETH-USD", "preco": 1665.51, "logica": "rompimento", "sinal": "caixa", "motivo": "sem rompimento (precisa fechar acima da máxima de 40 dias e da média de 200)", "posicao": 0.0, "stop": null}
